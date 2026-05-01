@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:40px;">
+            <h1>The <span>Vault</span></h1>
+            <button class="btn-submit" style="width:auto; padding:12px 25px;" onclick="location.href='dashboard.html'">+ New Recipe</button>
+        </header>
+
+        <input type="text" id="search" placeholder="🔍 Search recipes, ingredients, or chefs..." onkeyup="filter()">
+
+        <div class="recipe-grid" id="grid"></div>
+    </div>
+    <script>
+        const firebaseConfig = {
+        apiKey: "AIzaSyCQdnLsnTS0AS9CPddJ_22DVr71T74tZgs",
+        authDomain: "flavorshare-c26da.firebaseapp.com",
+        projectId: "flavorshare-c26da",
+        storageBucket: "flavorshare-c26da.firebasestorage.app",
+        messagingSenderId: "1001551653570",
+        appId: "1:1001551653570:web:6e147b5455fde67e86295b",
+        measurementId: "G-MGVR0V8LFT"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        db.collection('recipes').where('status','==','approved').onSnapshot(snap => {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = "";
+            snap.forEach(doc => {
+                const r = doc.data();
+                grid.innerHTML += `
+                <div class="card">
+                    <img src="${r.image}">
+                    <div class="card-content">
+                        <small style="color:var(--accent); text-transform:uppercase;">By ${r.author}</small>
+                        <h3 style="margin:10px 0; font-size:1.5rem;">${r.title}</h3>
+                        <button class="btn-submit" onclick="alert('INGREDIENTS:\\n${r.ing}\\n\\nSTEPS:\\n${r.steps}')">View Full Recipe</button>
+                    </div>
+                </div>`;
+            });
+        });
+
+        function filter() {
+            let val = document.getElementById('search').value.toLowerCase();
+            let cards = document.getElementsByClassName('card');
+            for(let c of cards) {
+                c.style.display = c.innerText.toLowerCase().includes(val) ? "" : "none";
+            }
+        }
+    </script>
+</body>
+</html>

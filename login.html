@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="centered-page">
+    <div class="auth-card">
+        <h2 id="title">Chef Registration</h2>
+        <div id="signup-box">
+            <input type="text" id="uName" placeholder="Create Username">
+            <input type="text" id="phone" placeholder="+91 Phone Number">
+            <input type="password" id="pass" placeholder="Create Password">
+            <div id="recaptcha-container" style="margin: 10px 0;"></div>
+            <button class="btn-submit" onclick="sendOTP()">Verify Phone</button>
+            <p onclick="showLogin()" style="cursor:pointer; margin-top:20px;">Already a Chef? <b style="color:var(--accent)">Login</b></p>
+        </div>
+        <div id="otp-box" class="hidden">
+            <input type="text" id="otp" placeholder="Enter OTP">
+            <button class="btn-submit" onclick="finishSignUp()">Complete Registration</button>
+        </div>
+        <div id="login-box" class="hidden">
+            <input type="text" id="lUser" placeholder="Username">
+            <input type="password" id="lPass" placeholder="Password">
+            <button class="btn-submit" onclick="simpleLogin()">Login to Dashboard</button>
+            <p onclick="showSignup()" style="cursor:pointer; margin-top:20px;">New here? <b style="color:var(--accent)">Sign Up</b></p>
+        </div>
+    </div>
+    <script>
+        const firebaseConfig = {
+        apiKey: "AIzaSyCQdnLsnTS0AS9CPddJ_22DVr71T74tZgs",
+        authDomain: "flavorshare-c26da.firebaseapp.com",
+        projectId: "flavorshare-c26da",
+        storageBucket: "flavorshare-c26da.firebasestorage.app",
+        messagingSenderId: "1001551653570",
+        appId: "1:1001551653570:web:6e147b5455fde67e86295b",
+        measurementId: "G-MGVR0V8LFT"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        function showLogin() {
+            document.getElementById('signup-box').classList.add('hidden');
+            document.getElementById('login-box').classList.remove('hidden');
+            document.getElementById('title').innerText = "Chef Login";
+        }
+        function showSignup() {
+            document.getElementById('login-box').classList.add('hidden');
+            document.getElementById('signup-box').classList.remove('hidden');
+            document.getElementById('title').innerText = "Chef Registration";
+        }
+
+        function sendOTP() {
+            const num = document.getElementById('phone').value;
+            const verifier = new firebase.auth.RecaptchaVerifier('recaptcha-container');
+            firebase.auth().signInWithPhoneNumber(num, verifier).then(res => {
+                window.confirmationResult = res;
+                document.getElementById('signup-box').classList.add('hidden');
+                document.getElementById('otp-box').classList.remove('hidden');
+            });
+        }
+
+        function finishSignUp() {
+            const user = document.getElementById('uName').value.trim().toLowerCase();
+            confirmationResult.confirm(document.getElementById('otp').value).then(() => {
+                db.collection('users').doc(user).set({ username: user, pass: document.getElementById('pass').value })
+                .then(() => { alert("Welcome Chef!"); location.reload(); });
+            });
+        }
+
+        async function simpleLogin() {
+            const u = document.getElementById('lUser').value.trim().toLowerCase();
+            const p = document.getElementById('lPass').value;
+            const doc = await db.collection('users').doc(u).get();
+            if(doc.exists && doc.data().pass === p) {
+                localStorage.setItem('currentUser', u);
+                window.location.href='dashboard.html';
+            } else { alert("Invalid Credentials!"); }
+        }
+    </script>
+</body>
+</html>

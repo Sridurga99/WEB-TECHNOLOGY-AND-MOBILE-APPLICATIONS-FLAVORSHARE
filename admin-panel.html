@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Master Log | Admin</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Master <span>Log</span></h1>
+            <button class="btn-tab" style="background:#ff4757; color:white;" onclick="logout()">Logout</button>
+        </div>
+        
+        <div style="margin: 30px 0; text-align: center; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+            <button class="btn-tab active" id="btn-p" onclick="fetchAdmin('pending')">Pending Requests</button>
+            <button class="btn-tab" id="btn-a" onclick="fetchAdmin('approved')">Approved Gallery</button>
+            <button class="btn-tab" id="btn-r" onclick="fetchAdmin('rejected')">Rejected Archive</button>
+        </div>
+
+        <div id="admin-list"></div>
+    </div>
+
+    <div id="adminModal" class="modal">
+        <div class="modal-content">
+            <span onclick="closeModal()" style="float:right; cursor:pointer; font-size:2rem; color:var(--accent)">&times;</span>
+            <h2 id="admTitle" style="color:var(--accent); font-family:'Playfair Display';"></h2>
+            <img id="admImg" src="" style="width:100%; border-radius:15px; margin:15px 0; max-height:250px; object-fit:cover;">
+            
+            <h4 style="color:var(--accent);">Ingredients:</h4>
+            <p id="admIng" style="color:#eee; white-space: pre-wrap;"></p>
+            <h4 style="color:var(--accent);">Steps:</h4>
+            <p id="admSteps" style="color:#eee; white-space: pre-wrap;"></p>
+
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:20px 0;">
+            
+            <label style="color:var(--accent); font-weight:600;">Admin Feedback (Why reject?):</label>
+            <textarea id="adminFeedback" placeholder="Provide a reason for the chef..." rows="3"></textarea>
+
+            <div id="modalActions" style="display:flex; gap:10px; margin-top:15px;"></div>
+        </div>
+    </div>
+
+    <div id="toast" style="display:none; position:fixed; bottom:20px; right:20px; background:var(--accent); color:black; padding:15px 25px; border-radius:10px; font-weight:bold; z-index:3000;"></div>
+
+    <script>
+        const firebaseConfig = {
+        apiKey: "AIzaSyCQdnLsnTS0AS9CPddJ_22DVr71T74tZgs",
+        authDomain: "flavorshare-c26da.firebaseapp.com",
+        projectId: "flavorshare-c26da",
+        storageBucket: "flavorshare-c26da.firebasestorage.app",
+        messagingSenderId: "1001551653570",
+        appId: "1:1001551653570:web:6e147b5455fde67e86295b",
+        measurementId: "G-MGVR0V8LFT"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let currentId = "";
+
+        function showStatus(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        function fetchAdmin(status) {
+            document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
+            if(event) event.target.classList.add('active');
+            
+            db.collection('recipes').where('status', '==', status).onSnapshot(snap => {
+                const list = document.getElementById('admin-list');
+                list.innerHTML = snap.empty ? `<p style="text-align:center; color:gray;">No ${status} recipes.</p>` : "";
+                snap.forEach(doc => {
+                    const r = doc.data();
+                    list.innerHTML += `
+                    <div class="form-card admin-item" onclick="openAdminModal('${doc.id}', '${encodeURIComponent(JSON.stringify(r))}')" style="display:flex; justify-content:space-between; align-items:center; padding:15px; margin-bottom:10px; cursor:pointer;">
+                        <div><h3>${r.title}</h3><p>Chef: ${r.author}</p></div>
+                        <span style="color:var(--accent)">View Details ➔</span>
+                    </div>`;
+                });
+            });
+        }
+
+        function openAdminModal(id, dataStr) {
+            currentId = id;
+            const r = JSON.parse(decodeURIComponent(dataStr));
+            document.getElementById('admTitle').innerText = r.title;
+            document.getElementById('admImg').src = r.image;
+            document.getElementById('admIng').innerText = r.ing;
+            document.getElementById('admSteps').innerText = r.steps;
+            document.getElementById('adminFeedback').value = r.feedback || "";
+            
+            const actionDiv = document.getElementById('modalActions');
+            // Allow moving recipe to any state from the modal
+            actionDiv.innerHTML = `
+                <button onclick="updateStatus('approved')" style="background:#2ed573; flex:1; padding:12px; border-radius:10px; font-weight:bold;">Approve</button>
+                <button onclick="updateStatus('rejected')" style="background:#ff4757; color:white; flex:1; padding:12px; border-radius:10px; font-weight:bold;">Reject</button>
+                <button onclick="updateStatus('pending')" style="background:#ffa502; flex:1; padding:12px; border-radius:10px; font-weight:bold;">Revert</button>
+            `;
+            document.getElementById('adminModal').style.display = 'block';
+        }
+
+        function updateStatus(s) {
+            const feed = document.getElementById('adminFeedback').value;
+            db.collection('recipes').doc(currentId).update({ status: s, feedback: feed })
+            .then(() => { showStatus("Recipe status: " + s.toUpperCase()); closeModal(); });
+        }
+
+        function closeModal() { document.getElementById('adminModal').style.display = 'none'; }
+        function logout() { localStorage.clear(); window.location.href='login.html'; }
+        window.onload = () => fetchAdmin('pending');
+    </script>
+</body>
+</html>

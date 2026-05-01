@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="style.css"></head>
+<body style="display:flex; align-items:center;">
+    <div class="form-card">
+        <h2>Admin Authentication</h2>
+        <input type="text" id="au" placeholder="Admin Username">
+        <input type="password" id="ap" placeholder="Access Password">
+        <button class="btn-submit" onclick="admLogin()">Enter Control Room</button>
+    </div>
+    <script>
+        function admLogin() {
+            const u = document.getElementById('au').value;
+            const p = document.getElementById('ap').value;
+            const vips = {"admin1":"pass123", "admin2":"chef456", "admin3":"grandmaster"};
+            if(vips[u] === p) {
+                localStorage.setItem('isAdmin', 'true');
+                window.location.href='admin-panel.html';
+            } else { alert("Access Denied!"); }
+        }
+    </script>
+</body>
+</html>

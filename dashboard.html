@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chef Dashboard | FlavorShare</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>Chef <span>Dashboard</span></h1>
+            <button class="btn-tab" style="background:#ff4757; color:white; border:none;" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="tab-bar">
+            <button class="btn-tab active" onclick="openTab(event, 'tab-create')">➕ Create</button>
+            <button class="btn-tab" onclick="openTab(event, 'tab-pending')">⏳ Pending</button>
+            <button class="btn-tab" onclick="openTab(event, 'tab-approved')">✅ Approved</button>
+            <button class="btn-tab" onclick="openTab(event, 'tab-rejected')">❌ Rejected</button>
+            <button class="btn-tab" onclick="openTab(event, 'tab-all')">🌐 Community</button>
+        </div>
+
+        <div id="tab-create" class="tab-content">
+            <div class="form-card">
+                <h2>Submit New Recipe</h2>
+                <input type="text" id="recipeTitle" placeholder="Dish Name">
+                <textarea id="recipeIng" placeholder="Ingredients..." rows="3"></textarea>
+                <textarea id="recipeSteps" placeholder="Cooking Steps..." rows="4"></textarea>
+                <p style="color:var(--accent); font-weight:600;">Select Cover Photo:</p>
+                <div class="img-grid" id="imagePicker"></div>
+                <input type="hidden" id="selectedImgUrl">
+                <button class="btn-submit" onclick="uploadRecipe()" style="margin-top:15px;">Submit to Admin</button>
+            </div>
+        </div>
+
+        <div id="tab-pending" class="tab-content" style="display:none;"><div id="pendingList" class="recipe-grid"></div></div>
+        <div id="tab-approved" class="tab-content" style="display:none;"><div id="approvedList" class="recipe-grid"></div></div>
+        <div id="tab-rejected" class="tab-content" style="display:none;"><div id="rejectedList" class="recipe-grid"></div></div>
+        <div id="tab-all" class="tab-content" style="display:none;"><div id="globalList" class="recipe-grid"></div></div>
+    </div>
+
+    <div id="recipeModal" class="modal">
+        <div class="modal-content">
+            <span onclick="closeModal()" style="float:right; cursor:pointer; font-size:2rem; color:var(--accent)">&times;</span>
+            
+            <div id="feedbackNotice"></div>
+
+            <h2 id="m-title" style="color:var(--accent); font-family:'Playfair Display';"></h2>
+            
+            <img id="m-img" src="" style="width:100%; border-radius:15px; margin:15px 0; max-height:300px; object-fit:cover;">
+
+            <div style="display:flex; align-items:center; gap:15px; margin-bottom:15px;">
+                <button onclick="handleLike()" style="background:none; border:1px solid var(--accent); color:white; padding:8px 20px; border-radius:30px; cursor:pointer; font-weight:bold;">❤️ Like</button>
+                <span id="m-likes" style="color:var(--accent); font-weight:bold;">0 Likes</span>
+            </div>
+
+            <h4 style="color:var(--accent);">Ingredients:</h4>
+            <p id="m-ing" style="white-space: pre-wrap; color:#eee;"></p>
+            <h4 style="color:var(--accent);">Steps:</h4>
+            <p id="m-steps" style="white-space: pre-wrap; color:#eee;"></p>
+
+            <hr style="border:0; border-top:1px solid rgba(255,159,67,0.3); margin:20px 0;">
+            <h3>Reviews</h3>
+            <div id="reviewList" style="margin-bottom: 15px; max-height:150px; overflow-y:auto;"></div>
+            <textarea id="revInput" placeholder="Leave a review..." rows="2"></textarea>
+            <button class="btn-submit" onclick="addReview()" style="padding:10px;">Post Review</button>
+        </div>
+    </div>
+
+    <div id="toast" style="display:none; position:fixed; bottom:20px; right:20px; background:var(--accent); color:black; padding:15px 25px; border-radius:10px; font-weight:bold; z-index:3000;"></div>
+
+    <script>
+        const firebaseConfig = {
+        apiKey: "AIzaSyCQdnLsnTS0AS9CPddJ_22DVr71T74tZgs",
+        authDomain: "flavorshare-c26da.firebaseapp.com",
+        projectId: "flavorshare-c26da",
+        storageBucket: "flavorshare-c26da.firebasestorage.app",
+        messagingSenderId: "1001551653570",
+        appId: "1:1001551653570:web:6e147b5455fde67e86295b",
+        measurementId: "G-MGVR0V8LFT"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const currentUser = localStorage.getItem('currentUser');
+        if(!currentUser) window.location.href = 'login.html';
+        let activeId = "";
+
+        function notify(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        // LISTENERS
+        db.collection('recipes').where('author','==',currentUser).where('status','==','pending').onSnapshot(s => render(s, 'pendingList'));
+        db.collection('recipes').where('author','==',currentUser).where('status','==','approved').onSnapshot(s => render(s, 'approvedList'));
+        db.collection('recipes').where('author','==',currentUser).where('status','==','rejected').onSnapshot(s => render(s, 'rejectedList'));
+        db.collection('recipes').where('status','==','approved').onSnapshot(s => render(s, 'globalList'));
+
+        function render(snap, listId) {
+            const div = document.getElementById(listId);
+            div.innerHTML = "";
+            snap.forEach(doc => {
+                const r = doc.data();
+                div.innerHTML += `
+                <div class="card" onclick="viewDetails('${doc.id}')">
+                    <img src="${r.image}">
+                    <div class="card-content">
+                        <span class="badge ${r.status}">${r.status}</span>
+                        <h3>${r.title}</h3>
+                        <small>Chef: ${r.author} | ❤️ ${r.likes || 0}</small>
+                    </div>
+                </div>`;
+            });
+        }
+
+        async function viewDetails(id) {
+            activeId = id;
+            const doc = await db.collection('recipes').doc(id).get();
+            const r = doc.data();
+
+            document.getElementById('m-title').innerText = r.title;
+            document.getElementById('m-img').src = r.image;
+            document.getElementById('m-ing').innerText = r.ing;
+            document.getElementById('m-steps').innerText = r.steps;
+            document.getElementById('m-likes').innerText = (r.likes || 0) + " Likes";
+
+            // FEEDBACK LOGIC
+            const fNotice = document.getElementById('feedbackNotice');
+            if(r.status === 'rejected' && r.feedback) {
+                fNotice.innerHTML = `<div style="background:rgba(255, 71, 87, 0.2); border:1px solid #ff4757; padding:12px; border-radius:10px; margin-bottom:15px; color:#ff4757;"><b>Admin Feedback:</b> ${r.feedback}</div>`;
+            } else { fNotice.innerHTML = ""; }
+
+            loadReviews(id);
+            document.getElementById('recipeModal').style.display = 'block';
+        }
+
+        function handleLike() {
+            db.collection('recipes').doc(activeId).update({
+                likes: firebase.firestore.FieldValue.increment(1)
+            }).then(() => {
+                notify("Recipe Liked!");
+                viewDetails(activeId); // Refresh modal data
+            });
+        }
+
+        // ALL YOUR IMAGE LINKS
+        const foodPhotos = [ "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400", 
+        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400",
+        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", 
+        "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=400", 
+        "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400", 
+        "https://images.unsplash.com/photo-1473093226795-af9932fe5856?w=400", 
+        "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=400", 
+        "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400", 
+        "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400", 
+        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400", 
+        "https://images.unsplash.com/photo-1493770348161-369560ae357d?w=400", 
+        "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400", 
+        "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=400", 
+        "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=400", 
+        "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=500", 
+        "https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=500", 
+        "https://images.unsplash.com/photo-1610192244261-3f33de3f55e4?w=500", 
+        "https://images.unsplash.com/photo-1630409351241-e90e7f5e434d?w=500",
+        "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=500",
+        "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=500",
+        "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600"
+    ];
+
+        const picker = document.getElementById('imagePicker');
+        foodPhotos.forEach(url => {
+            const img = document.createElement('img'); img.src = url; img.className = 'img-opt';
+            img.onclick = () => {
+                document.querySelectorAll('.img-opt').forEach(i => i.classList.remove('selected'));
+                img.classList.add('selected'); document.getElementById('selectedImgUrl').value = url;
+                notify("Image Picked!");
+            };
+            picker.appendChild(img);
+        });
+
+        function uploadRecipe() {
+            const t = document.getElementById('recipeTitle').value;
+            const img = document.getElementById('selectedImgUrl').value;
+            if(!t || !img) return notify("Name and Image required!");
+            db.collection('recipes').add({
+                title: t, ing: document.getElementById('recipeIng').value, steps: document.getElementById('recipeSteps').value,
+                image: img, author: currentUser, status: 'pending', likes: 0, time: Date.now()
+            }).then(() => { notify("Recipe Sent!"); setTimeout(() => location.reload(), 2000); });
+        }
+
+        function addReview() {
+            const txt = document.getElementById('revInput').value;
+            if(!txt) return;
+            db.collection('reviews').add({ recipeId: activeId, user: currentUser, text: txt, time: Date.now() })
+            .then(() => { document.getElementById('revInput').value = ""; loadReviews(activeId); notify("Review Posted!"); });
+        }
+
+        function loadReviews(id) {
+            db.collection('reviews').where('recipeId','==',id).get().then(snap => {
+                const box = document.getElementById('reviewList');
+                box.innerHTML = snap.empty ? "No reviews yet." : "";
+                snap.forEach(d => {
+                    box.innerHTML += `<div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; margin-bottom:5px;">
+                        <b style="color:var(--accent)">${d.data().user}:</b> ${d.data().text}</div>`;
+                });
+            });
+        }
+
+        function openTab(evt, id) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = "none");
+            document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).style.display = "block";
+            evt.currentTarget.classList.add('active');
+        }
+        function closeModal() { document.getElementById('recipeModal').style.display = "none"; }
+        function logout() { localStorage.clear(); window.location.href = 'index.html'; }
+    </script>
+</body>
+</html>
